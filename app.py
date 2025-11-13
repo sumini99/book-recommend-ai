@@ -2,29 +2,21 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import random
 import matplotlib.font_manager as fm
-import os
-import requests
+
+# -------- 한글 폰트 설정 (NotoSansKR) --------
+# Streamlit Cloud에서도 문제 없이 작동
+font_path = "/usr/share/fonts/truetype/noto/NotoSansKR-Regular.otf"
+fm.fontManager.addfont(font_path)
+plt.rc('font', family='Noto Sans KR')
+
+# ---------------------------------------------
 
 st.set_page_config(page_title="책 시각화 보드", page_icon="📚")
-
-# ---- 한글 폰트 다운로드 및 등록 ----
-font_path = "NanumGothic.ttf"
-
-if not os.path.exists(font_path):
-    url = "https://github.com/naver/nanumfont/blob/master/ttf/NanumGothic.ttf?raw=true"
-    r = requests.get(url)
-    with open(font_path, "wb") as f:
-        f.write(r.content)
-
-fontprop = fm.FontProperties(fname=font_path)
-
-# ---- 제목 ----
 st.title("📚 내 책 쌓기(시각화)")
 
 # ---- Session State ----
 if "books" not in st.session_state:
     st.session_state.books = []
-
 
 # ---- 입력 영역 ----
 st.subheader("📌 책 정보 입력")
@@ -35,17 +27,14 @@ author = st.text_input("저자")
 if st.button("책 추가하기"):
     if title.strip() and author.strip():
         color = (random.random(), random.random(), random.random())
-
         st.session_state.books.append({
             "title": title,
             "author": author,
             "color": color,
         })
-
         st.success(f"'{title}' 추가됨!")
     else:
         st.warning("제목과 저자를 입력해주세요.")
-
 
 # ---- 시각화 ----
 st.subheader("📚 내가 쌓은 책들")
@@ -72,13 +61,5 @@ else:
             1.4, y + 0.8,
             f"{book['title']} - {book['author']}",
             fontsize=14,
-            fontproperties=fontprop,
-            color="black",
-            fontweight="bold"
-        )
 
-        y += 1.5
-
-    ax.axis("off")
-    st.pyplot(fig)
 
