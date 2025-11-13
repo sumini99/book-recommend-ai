@@ -48,15 +48,21 @@ if st.session_state.search_results:
 
     for i, book in enumerate(st.session_state.search_results):
         with st.container():
-            st.write(f"**{i+1}. {book['title']}**")
-            st.write(f"저자: {book['author']}")
-            st.write(f"출판사: {book['publisher']}")
+            cols = st.columns([1, 3])
 
-            if st.button(f"➕ 이 책 쌓기", key=f"add_{i}"):
-                st.session_state.books.append(book)
-                st.success(f"'{book['title']}' 쌓였습니다!")
-                st.session_state.search_results = []
-                st.experimental_rerun()
+            with cols[0]:
+                st.image(book["image"], width=120)  # ⭐ 책 표지 이미지 추가
+
+            with cols[1]:
+                st.write(f"**{i+1}. {book['title']}**")
+                st.write(f"저자: {book['author']}")
+                st.write(f"출판사: {book['publisher']}")
+
+                if st.button(f"➕ 이 책 쌓기", key=f"add_{i}"):
+                    st.session_state.books.append(book)
+                    st.success(f"'{book['title']}' 쌓였습니다!")
+                    st.session_state.search_results = []
+                    st.rerun()   # ⭐ 최신 Streamlit용 rerun
 
 # -----------------------------
 # 📚 쌓인 책 시각화
@@ -68,49 +74,51 @@ books = st.session_state.books
 if not books:
     st.info("아직 쌓인 책이 없습니다.")
 else:
-    # 쌓인 책이 아래 기준 → 위로 올라가게 (입력순 유지)
+
     fig_height = max(5, len(books) * 1.5)
     fig, ax = plt.subplots(figsize=(12, fig_height))
 
     ax.set_xlim(0, 12)
     ax.set_ylim(0, len(books) * 1.7 + 2)
-    ax.invert_yaxis()  # 아래부터 위로 쌓이는 느낌
+    ax.invert_yaxis()
     ax.axis("off")
 
     y = 1
-    offset_pattern = [0, 1, -1]  # 좌, 우, 좌 반복
+    offset_pattern = [0, 1, -1]  # 고정된 패턴 → 책 흔들리지 않음
 
     for idx, book in enumerate(books):
         color = book.get("color", f"#{random.randint(0, 0xFFFFFF):06x}")
         book["color"] = color
 
-        # 📌 제목만 표시 + 길면 '...'
+        # -------------------
+        # 제목 길면 "..."
+        # -------------------
         title = book["title"]
         if len(title) > 25:
             title = title[:25] + "..."
 
         x_offset = offset_pattern[idx % 3] * 1.0
 
-        # 책 높이 = 페이지수에 비례 (기본 1.5)
+        # 페이지 관련
         pages = book.get("pages", 180)
         height = 1.5 + (pages / 800)
 
-        rect = plt.Rectangle((3 + x_offset, y), 6, height, color=color, ec="black", linewidth=2)
+        rect = plt.Rectangle((3 + x_offset, y), 6, height,
+                             color=color, ec="black", linewidth=2)
         ax.add_patch(rect)
 
-        # 텍스트 중앙 정렬
+        # 텍스트
         ax.text(
-            3 + x_offset + 3,  # 중앙
+            3 + x_offset + 3,
             y + height / 2,
             title,
             ha="center",
             va="center",
             fontsize=14,
             fontproperties=font_prop,
-            color="black",
-            weight="bold"
+            weight="bold",
         )
 
-        y += height + 0.1  # 📌 책 사이 딱 붙게 (여백 거의 없음)
+        y += height + 0.1  # 책 사이 딱 붙게
 
     st.pyplot(fig)
