@@ -36,6 +36,16 @@ def safe_int(value, default=200):
 
 
 # -------------------------------
+# 제목 길면 ...으로 축약
+# -------------------------------
+def shorten_title(title, max_len=25):
+    if len(title) <= max_len:
+        return title
+    return title[:max_len] + "..."
+
+
+
+# -------------------------------
 # Streamlit 기본 설정
 # -------------------------------
 st.set_page_config(page_title="책 쌓기", layout="wide")
@@ -151,12 +161,12 @@ else:
             linewidth=2
         )
         ax.add_patch(rect)
-
+        
         # 제목 텍스트
         ax.text(
             3 + x_offset + 3,
             y + thickness / 2,
-            f"{book['title']}",
+            shorten_title(book['title']),  # ← 제목을 축약해서 넣음
             fontsize=13,
             color="black",
             fontproperties=font_prop,
