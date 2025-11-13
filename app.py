@@ -2,11 +2,13 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import random
+from matplotlib.patches import FancyBboxPatch
 from aladin_api import search_books
 
 
+
 # ================================================================
-# 0) Custom CSS – UI 확 예쁘게 만들기
+# 0) Custom CSS – UI 예쁘게 만들기
 # ================================================================
 def local_css(css_text):
     st.markdown(f"<style>{css_text}</style>", unsafe_allow_html=True)
@@ -51,14 +53,9 @@ local_css("""
     padding: 10px;
 }
 
-/* 서브헤더 텍스트 색 */
+/* 텍스트 색상 */
 h3, h2, h1, label {
     color: #ffffff !important;
-}
-
-/* 이미지 가운데 정렬 */
-img {
-    margin-bottom: 10px;
 }
 """)
 
@@ -74,8 +71,18 @@ font_prop = fm.FontProperties(fname=font_path)
 # ================================================================
 # 2) Utility functions
 # ================================================================
-def random_color():
-    return "#%06x" % random.randint(0, 0xFFFFFF)
+PALETTE = [
+    "#FFCDD2",  # pink
+    "#F8BBD0",  # light pink
+    "#E1F5FE",  # sky blue
+    "#E8F5E9",  # mint
+    "#FFF9C4",  # yellow
+    "#D1C4E9",  # lavender
+    "#FFE0B2",  # peach
+]
+
+def pastel_color():
+    return random.choice(PALETTE)
 
 def safe_int(value, default=200):
     try:
@@ -85,18 +92,59 @@ def safe_int(value, default=200):
     except:
         return default
 
-# 제목이 너무 길면 줄여서 ... 처리
-def shorten_title(title, max_len=25):
+def shorten_title(title, max_len=20):
     if len(title) <= max_len:
         return title
     return title[:max_len] + "..."
 
 
 # ================================================================
+# 3) 감성 파스텔 책 그리는 함수
+# ================================================================
+def draw_pretty_book(ax, x, y, width, height, color, title, font_prop):
+
+    # 그림자 (아래 얇게)
+    shadow = FancyBboxPatch(
+        (x, y + height - 0.12),
+        width,
+        0.12,
+        boxstyle="round,pad=0.05,rounding_size=12",
+        linewidth=0,
+        facecolor="rgba(0,0,0,0.15)"
+    )
+    ax.add_patch(shadow)
+
+    # 책 본체 (라운드 박스)
+    book_patch = FancyBboxPatch(
+        (x, y),
+        width,
+        height,
+        boxstyle="round,pad=0.2,rounding_size=12",
+        linewidth=1.5,
+        edgecolor="#444444",
+        facecolor=color
+    )
+    ax.add_patch(book_patch)
+
+    # 제목 텍스트
+    ax.text(
+        x + width / 2,
+        y + height / 2,
+        title,
+        ha="center",
+        va="center",
+        fontproperties=font_prop,
+        fontsize=13,
+        color="black",
+        weight="bold"
+    )
+
+
+
+# ================================================================
 # Streamlit 기본 설정
 # ================================================================
 st.set_page_config(page_title="책 쌓기", layout="wide")
-
 st.markdown("<h1 class='page-title'>📚 AI 기반 알라딘 책검색 + 책탑 쌓기</h1>", unsafe_allow_html=True)
 
 
@@ -105,6 +153,7 @@ if "books" not in st.session_state:
     st.session_state.books = []
 if "selected_book" not in st.session_state:
     st.session_state.selected_book = None
+
 
 
 # ================================================================
@@ -125,6 +174,7 @@ if submitted:
         st.session_state.search_results = search_books(title_input)
     else:
         st.warning("책 제목을 입력해야 검색됩니다.")
+
 
 
 # ================================================================
@@ -153,6 +203,7 @@ if "search_results" in st.session_state:
             st.markdown("</div>", unsafe_allow_html=True)
 
 
+
 # ================================================================
 # 6) 책 선택 → 책탑 추가
 # ================================================================
@@ -162,27 +213,26 @@ if selected:
     st.success(f"'{selected['title']}' 선택됨! 아래 책탑에 쌓습니다.")
 
     pages = safe_int(selected["pages"])
-    height = 1.5 + min(pages / 1500, 0.6)
+    height = 1.2 + min(pages / 1500, 0.5)
 
-    # 책의 x 위치는 "추가하는 순간" 고정돼야 함
     idx = len(st.session_state.books)
     direction = 1 if idx % 2 == 0 else -1
     x_offset = (idx % 3) * 1.2 * direction
 
     st.session_state.books.append({
         "title": selected["title"],
-        "author": selected["author"],
         "pages": pages,
         "height": height,
-        "color": random_color(),
+        "color": pastel_color(),
         "x_offset": x_offset
     })
 
     st.session_state.selected_book = None
 
 
+
 # ================================================================
-# 7) 책 시각화 (책탑)
+# 7) 책 시각화 (파스텔 책탑)
 # ================================================================
 st.subheader("📚 내가 쌓은 책들")
 
@@ -201,30 +251,22 @@ else:
     y = 1
 
     for idx, book in enumerate(books):
-        color = book["color"]
-        thickness = book["height"]
-        x_offset = book["x_offset"]  # 고정 위치 사용
-
-        rect = plt.Rectangle((3 + x_offset, y), 6, thickness,
-                             color=color, ec="black", linewidth=2)
-        ax.add_patch(rect)
-
-        ax.text(
-            3 + x_offset + 3,
-            y + thickness / 2,
-            shorten_title(book['title']),
-            fontsize=13,
-            color="black",
-            fontproperties=font_prop,
-            weight="bold",
-            ha="center",
-            va="center"
+        draw_pretty_book(
+            ax,
+            x=3 + book["x_offset"],
+            y=y,
+            width=6,
+            height=book["height"],
+            color=book["color"],
+            title=shorten_title(book["title"]),
+            font_prop=font_prop
         )
 
-        y += thickness + 0.05
+        y += book["height"] + 0.15
 
     ax.axis("off")
     st.pyplot(fig)
+
 
 
 # ================================================================
@@ -233,3 +275,4 @@ else:
 if st.button("모든 책 초기화"):
     st.session_state.books = []
     st.experimental_rerun()
+
