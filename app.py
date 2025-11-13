@@ -52,9 +52,6 @@ if not st.session_state.books:
 else:
     books = st.session_state.books
 
-    # 위로 쌓이도록 뒤집음 (최근이 위)
-    books = list(reversed(books))
-
     fig_height = max(5, len(books) * 1.5)
     fig, ax = plt.subplots(figsize=(10, fig_height))
 
