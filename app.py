@@ -235,7 +235,8 @@ else:
 
     # PNG로 렌더링 → 화면에서 안 잘리게
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+    fig.savefig(buf, format="png", dpi=200, bbox_inches=None, pad_inches=0)
+
     buf.seek(0)
     st.image(buf)
 
