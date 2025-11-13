@@ -44,38 +44,53 @@ if st.button("책 추가하기"):
 
 
 # ---- 시각화 ----
+# ---- 시각화 ----
 st.subheader("📚 내가 쌓은 책들")
 
 if not st.session_state.books:
     st.info("아직 쌓인 책이 없습니다.")
 else:
-    fig_height = max(4, len(st.session_state.books) * 1.5)
-    fig, ax = plt.subplots(figsize=(8, fig_height))
+    books = st.session_state.books
 
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0, len(st.session_state.books) * 1.6 + 2)
-    ax.invert_yaxis()
+    # 위로 쌓이도록 뒤집음 (최근이 위)
+    books = list(reversed(books))
 
-    y = 1
+    fig_height = max(5, len(books) * 1.5)
+    fig, ax = plt.subplots(figsize=(10, fig_height))
 
-    for book in st.session_state.books:
+    ax.set_xlim(0, 12)
+    ax.set_ylim(0, len(books) * 1.7 + 2)
+    ax.invert_yaxis()  # 0이 위로 오게 하려면 invert 필요 없음 → 제거해도 됨
+    ax.invert_yaxis()  # y축 반전 유지 (캔버스 기준으로 아래→위 느낌)
+
+    y = 1  # 아래부터 시작
+    offset_direction = 1  # 좌우 번갈아 이동
+
+    for idx, book in enumerate(books):
         color = book["color"]
 
-        # 사각형 박스
-        rect = plt.Rectangle((1, y), 8, 1.3, color=color, ec="black", linewidth=2)
+        # 계단식 x 좌표
+        x_offset = (idx % 3) * 1.2 * offset_direction
+        offset_direction *= -1  # 방향 반전 (좌→우→좌→우)
+
+        # 박스
+        rect = plt.Rectangle((3 + x_offset, y), 6, 1.5, color=color, ec="black", linewidth=2)
         ax.add_patch(rect)
 
-        # 텍스트
+        # 텍스트 (박스 중앙)
         ax.text(
-            1.4, y + 0.85,
+            3 + x_offset + 3,  # 박스 중앙 x
+            y + 0.95,          # 박스 중앙 y
             f"{book['title']} - {book['author']}",
-            fontsize=14,
-            color="black",
+            fontsize=13,
             fontproperties=font_prop,
-            fontweight="bold"
+            color="black",
+            weight="bold",
+            ha="center",
+            va="center"
         )
 
-        y += 1.6
+        y += 1.7  # 다음 박스 더 위로 이동
 
     ax.axis("off")
     st.pyplot(fig)
