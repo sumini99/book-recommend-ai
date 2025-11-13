@@ -1,48 +1,43 @@
 import streamlit as st
 import matplotlib.pyplot as plt
-import random
 import matplotlib.font_manager as fm
+import random
 from aladin_api import search_books
 
-# -----------------------------
-# 한글 폰트 적용
-# -----------------------------
-font_path = "kyoboson.ttf"
-font_prop = fm.FontProperties(fname=font_path)
+# ============================
+# 🔤 폰트 설정
+# ============================
+FONT_PATH = "kyoboson.ttf"   # 리포지토리에 올라간 파일명
+fm.fontManager.addfont(FONT_PATH)
+font_prop = fm.FontProperties(fname=FONT_PATH)
 
-# -----------------------------
-# 세션 초기화
-# -----------------------------
+
+# ============================
+# 🔧 세션 초기화
+# ============================
 if "books" not in st.session_state:
     st.session_state.books = []
 
 if "search_results" not in st.session_state:
     st.session_state.search_results = []
 
+
+# ============================
+# 🔍 검색 입력 UI
+# ============================
 st.title("📚 책 쌓기 프로젝트")
 
-# -----------------------------
-# 🔍 검색 입력
-# -----------------------------
-title_input = st.text_input("책 제목 입력")
+title_input = st.text_input("책 제목을 입력하세요")
 author_input = st.text_input("저자 입력 (선택)")
 
-if st.button("🔎 알라딘에서 검색"):
-    query = title_input.strip()
+if st.button("🔍 검색하기"):
+    results = search_books(title_input, author_input)
+    st.session_state.search_results = results
 
-    if author_input.strip():
-        query += " " + author_input.strip()
 
-    results = search_books(query)
-
-    if results:
-        st.session_state.search_results = results
-    else:
-        st.error("검색 결과가 없습니다.")
-
-# -----------------------------
-# 🔽 검색된 책 리스트 표시
-# -----------------------------
+# ============================
+# 📌 검색 결과 UI
+# ============================
 if st.session_state.search_results:
     st.subheader("📘 검색된 책 중 선택하세요")
 
@@ -50,75 +45,82 @@ if st.session_state.search_results:
         with st.container():
             cols = st.columns([1, 3])
 
-            with cols[0]:
-                st.image(book["image"], width=120)  # ⭐ 책 표지 이미지 추가
+            # ====== 표지 이미지 처리 ======
+            cover = book.get("image") or book.get("cover") or ""
+            if cover:
+                with cols[0]:
+                    st.image(cover, width=120)
+            else:
+                with cols[0]:
+                    st.write("📕 (이미지 없음)")
 
+            # ====== 텍스트 정보 ======
             with cols[1]:
-                st.write(f"**{i+1}. {book['title']}**")
+                st.write(f"### {book['title']}")
                 st.write(f"저자: {book['author']}")
                 st.write(f"출판사: {book['publisher']}")
+                st.write(f"페이지 수: {book['pages']}")
 
-                if st.button(f"➕ 이 책 쌓기", key=f"add_{i}"):
+                if st.button(f"📚 이 책 선택하기 #{i}", key=f"select_{i}"):
                     st.session_state.books.append(book)
-                    st.success(f"'{book['title']}' 쌓였습니다!")
+                    st.success("✔ 책이 쌓였습니다!")
                     st.session_state.search_results = []
-                    st.rerun()   # ⭐ 최신 Streamlit용 rerun
+                    st.experimental_rerun()
 
-# -----------------------------
+
+# ============================
 # 📚 쌓인 책 시각화
-# -----------------------------
-st.subheader("📚 내가 쌓은 책들")
+# ============================
+st.subheader("🏗️ 내가 쌓은 책들")
 
-books = st.session_state.books
-
-if not books:
-    st.info("아직 쌓인 책이 없습니다.")
+if not st.session_state.books:
+    st.info("아직 쌓인 책이 없습니다!")
 else:
+    books = st.session_state.books
 
-    fig_height = max(5, len(books) * 1.5)
-    fig, ax = plt.subplots(figsize=(12, fig_height))
+    # 쌓인 책 그래프
+    fig_height = max(6, len(books) * 1.3)
+    fig, ax = plt.subplots(figsize=(10, fig_height))
 
     ax.set_xlim(0, 12)
-    ax.set_ylim(0, len(books) * 1.7 + 2)
-    ax.invert_yaxis()
-    ax.axis("off")
+    ax.set_ylim(0, len(books) * 1.3 + 2)
+    ax.invert_yaxis()  # 위로 쌓이게 만들기
 
-    y = 1
-    offset_pattern = [0, 1, -1]  # 고정된 패턴 → 책 흔들리지 않음
+    y = 0.5  # 아래 시작점
 
     for idx, book in enumerate(books):
-        color = book.get("color", f"#{random.randint(0, 0xFFFFFF):06x}")
-        book["color"] = color
 
-        # -------------------
-        # 제목 길면 "..."
-        # -------------------
-        title = book["title"]
-        if len(title) > 25:
-            title = title[:25] + "..."
-
-        x_offset = offset_pattern[idx % 3] * 1.0
-
-        # 페이지 관련
-        pages = book.get("pages", 180)
-        height = 1.5 + (pages / 800)
-
-        rect = plt.Rectangle((3 + x_offset, y), 6, height,
-                             color=color, ec="black", linewidth=2)
-        ax.add_patch(rect)
-
-        # 텍스트
-        ax.text(
-            3 + x_offset + 3,
-            y + height / 2,
-            title,
-            ha="center",
-            va="center",
-            fontsize=14,
-            fontproperties=font_prop,
-            weight="bold",
+        # 🔹 길이 제한된 제목(20자 넘어가면 …)
+        title_short = (
+            book["title"] if len(book["title"]) <= 20 
+            else book["title"][:20] + "…"
         )
 
-        y += height + 0.1  # 책 사이 딱 붙게
+        # 🔹 책 높이 = 페이지 수에 비례 (최소 1)
+        height = max(1.0, book["pages"] / 250)
 
+        # 랜덤 색상
+        color = book.get("color")
+        if not color:
+            color = "#{:06x}".format(random.randint(0, 0xFFFFFF))
+            book["color"] = color
+
+        # 책 박스
+        rect = plt.Rectangle((3, y), 6, height, color=color, ec="black", linewidth=2)
+        ax.add_patch(rect)
+
+        # 텍스트 (중앙)
+        ax.text(
+            3 + 3, y + height / 2,
+            title_short,
+            fontsize=13,
+            fontproperties=font_prop,
+            color="black",
+            weight="bold",
+            ha="center", va="center"
+        )
+
+        y += height + 0.1  # 🔥 간격 거의 없이 붙임
+
+    ax.axis("off")
     st.pyplot(fig)
