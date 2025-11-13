@@ -2,92 +2,108 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import random
-import os
 
-st.set_page_config(page_title="책 시각화 보드", page_icon="📚")
+from aladin_api import search_book_from_aladin   # ⬅ 추가된 부분
 
-# -------- 한글 폰트 로드 (repo 루트의 kyoboson.ttf) --------
-font_path = "kyoboson.ttf"
 
-if os.path.exists(font_path):
-    font_prop = fm.FontProperties(fname=font_path)
-    fm.fontManager.addfont(font_path)
-    plt.rc('font', family=font_prop.get_name())
-else:
-    st.warning("⚠️ 폰트 파일을 찾을 수 없습니다. (kyoboson.ttf)")
-    font_prop = None
-# ------------------------------------------------------------
+# ----------------- 기본 설정 -----------------
+st.set_page_config(page_title="AI + 알라딘 독서 탑", layout="wide")
 
-st.title("📚 내 책 쌓기(시각화)")
-
-# ---- Session State ----
 if "books" not in st.session_state:
     st.session_state.books = []
 
-# ---- 입력 영역 ----
-st.subheader("📌 책 정보 입력")
+# 한글 폰트 적용
+font_path = "kyoboson.ttf"
+font_prop = fm.FontProperties(fname=font_path)
+fm.fontManager.addfont(font_path)
+plt.rc("font", family=font_prop.get_name())
 
-title = st.text_input("책 제목")
-author = st.text_input("저자")
+
+# ----------------- 책 입력 -----------------
+st.title("📚 알라딘 기반 독서 탑 쌓기")
+
+col1, col2 = st.columns(2)
+with col1:
+    title = st.text_input("책 제목 입력")
+with col2:
+    author = st.text_input("저자 입력")
 
 if st.button("책 추가하기"):
-    if title.strip() and author.strip():
-        color = (random.random(), random.random(), random.random())
-        st.session_state.books.append({
-            "title": title,
-            "author": author,
-            "color": color
-        })
-        st.success(f"'{title}' 추가됨!")
-    else:
+    if not title or not author:
         st.warning("제목과 저자를 모두 입력해주세요.")
+    else:
+        info = search_book_from_aladin(title, author)
+
+        if info:
+            # 랜덤 색상 추가
+            info["color"] = random.choice([
+                "#F7A8A8", "#A8D1F7", "#A8F7E8",
+                "#F7E7A8", "#C7A8F7", "#FFA6D1"
+            ])
+
+            st.session_state.books.append(info)
+            st.success(f"책 추가 성공! → {info['title']}")
+        else:
+            st.error("알라딘에서 정보를 찾을 수 없습니다.")
 
 
-# ---- 시각화 ----
-# ---- 시각화 ----
+# ----------------- 책탑 시각화 -----------------
 st.subheader("📚 내가 쌓은 책들")
 
 if not st.session_state.books:
     st.info("아직 쌓인 책이 없습니다.")
 else:
     books = st.session_state.books
+    fig_height = max(5, len(books) * 2)
 
-    fig_height = max(5, len(books) * 1.5)
-    fig, ax = plt.subplots(figsize=(10, fig_height))
+    fig, ax = plt.subplots(figsize=(11, fig_height))
 
     ax.set_xlim(0, 12)
-    ax.set_ylim(0, len(books) * 1.7 + 2)
-    ax.invert_yaxis()  # 0이 위로 오게 하려면 invert 필요 없음 → 제거해도 됨
-    ax.invert_yaxis()  # y축 반전 유지 (캔버스 기준으로 아래→위 느낌)
+    ax.set_ylim(0, len(books) * 2 + 3)
+    ax.invert_yaxis()
 
-    y = 1  # 아래부터 시작
-    offset_direction = 1  # 좌우 번갈아 이동
+    y = 1
+    offset_direction = 1
 
     for idx, book in enumerate(books):
-        color = book["color"]
+        height = max(1, book["pages"] / 150)   # 150 페이지 = 1 높이
 
-        # 계단식 x 좌표
-        x_offset = (idx % 3) * 1.2 * offset_direction
-        offset_direction *= -1  # 방향 반전 (좌→우→좌→우)
+        x_offset = (idx % 3) * 1.5 * offset_direction
+        offset_direction *= -1
 
-        # 박스
-        rect = plt.Rectangle((3 + x_offset, y), 6, 1.5, color=color, ec="black", linewidth=2)
+        rect = plt.Rectangle((3 + x_offset, y), 6, height,
+                             color=book["color"], ec="black", linewidth=2)
         ax.add_patch(rect)
 
-        # 텍스트 (박스 중앙)
         ax.text(
-            3 + x_offset + 3,  # 박스 중앙 x
-            y + 0.95,          # 박스 중앙 y
+            3 + x_offset + 3,
+            y + height * 0.5,
             f"{book['title']} - {book['author']}",
             fontsize=13,
             fontproperties=font_prop,
-            color="black",
-            weight="bold",
-            ha="center",
-            va="center"
+            ha="center", va="center"
         )
 
-        y += 1.7  # 다음 박스 더 위로 이동
+        y += height + 0.7
 
     ax.axis("off")
     st.pyplot(fig)
+
+
+# ----------------- 오른쪽 상세 보기 -----------------
+st.subheader("📖 책 상세 정보")
+
+if st.session_state.books:
+    selected = st.selectbox(
+        "책 선택",
+        [b["title"] for b in st.session_state.books]
+    )
+
+    book = next(b for b in st.session_state.books if b["title"] == selected)
+
+    st.image(book["cover"], width=160)
+    st.write(f"### 제목: {book['title']}")
+    st.write(f"**저자:** {book['author']}")
+    st.write(f"**페이지:** {book['pages']}쪽")
+    st.write("**요약:**")
+    st.write(book.get("description", "요약 정보 없음"))
