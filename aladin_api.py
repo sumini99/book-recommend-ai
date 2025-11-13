@@ -2,51 +2,48 @@ import requests
 import xml.etree.ElementTree as ET
 import streamlit as st
 
-def search_books(title):
-    """
-    제목으로 알라딘 검색 → 최대 5개의 후보 반환
-    """
+def search_books(query):
     TTBKEY = st.secrets["aladin"]["aladin_key"]
 
     url = "http://www.aladin.co.kr/ttb/api/ItemSearch.aspx"
     params = {
         "ttbkey": TTBKEY,
-        "Query": title,
-        "QueryType": "Title",
-        "SearchTarget": "Book",
+        "Query": query,
+        "QueryType": "Keyword",
         "MaxResults": 5,
+        "SearchTarget": "Book",
         "output": "xml",
         "Version": "20131101"
     }
 
     res = requests.get(url, params=params)
-    if res.status_code != 200:
+
+    try:
+        root = ET.fromstring(res.text)
+    except:
         return []
 
-    root = ET.fromstring(res.text)
-    items = root.findall("item")
+    # XML namespace 정의
+    ns = {'ns': 'http://www.aladin.co.kr/ttb/apiguide.aspx'}
+
+    # item 태그 찾기
+    items = root.findall(".//ns:item", ns)
 
     results = []
-
     for item in items:
-        info = {
-            "title": item.findtext("title"),
-            "author": item.findtext("author"),
-            "cover": item.findtext("cover"),
-            "description": item.findtext("description"),
-            "publisher": item.findtext("publisher"),
-            "link": item.findtext("link"),
-        }
+        title = item.find("ns:title", ns)
+        author = item.find("ns:author", ns)
+        cover = item.find("ns:cover", ns)
+        pubdate = item.find("ns:pubDate", ns)
+        isbn13 = item.find("ns:isbn13", ns)
 
-        # 페이지 수 파싱
-        sub_info = item.find("subInfo")
-        if sub_info is not None:
-            pages = sub_info.findtext("itemPage")
-            info["pages"] = int(pages) if pages and pages.isdigit() else 120
-        else:
-            info["pages"] = 120
-
-        results.append(info)
+        results.append({
+            "title": title.text if title is not None else "",
+            "author": author.text if author is not None else "",
+            "cover": cover.text if cover is not None else "",
+            "pubdate": pubdate.text if pubdate is not None else "",
+            "isbn13": isbn13.text if isbn13 is not None else "",
+        })
 
     return results
 
