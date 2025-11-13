@@ -1,58 +1,26 @@
 import streamlit as st
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import matplotlib.font_manager as fm
-from matplotlib.patches import Rectangle
-import io
 import random
+import io
 from aladin_api import search_books
 
-
-# ================================================================
-# 0) Streamlit config (⚠ 맨 위에서 바로 적용해야 wide OFF 가능)
-# ================================================================
+# -------------------------------------------
+# Streamlit 기본 설정 (⚠ 첫 줄 바로 아래에 위치해야 wide OFF 유지!)
+# -------------------------------------------
 st.set_page_config(page_title="책 쌓기", layout="centered")
 
-
-# ================================================================
-# 1) Custom CSS
-# ================================================================
-def local_css(text):
-    st.markdown(f"<style>{text}</style>", unsafe_allow_html=True)
-
-local_css("""
-.page-title {
-    text-align: center;
-    font-weight: 800;
-    font-size: 32px;
-    margin-top: 10px;
-}
-.search-card, .book-card {
-    background: #1e1e1e;
-    padding: 25px;
-    border-radius: 12px;
-    border: 1px solid #333;
-    margin-bottom: 25px;
-}
-.stButton>button {
-    width: 180px;
-    height: 42px;
-    border-radius: 6px;
-    font-weight: 600;
-}
-""")
-
-
-# ================================================================
-# 2) Font Load
-# ================================================================
-font_path = "kyoboson.ttf"
+# -------------------------------------------
+# 폰트 로드
+# -------------------------------------------
+font_path = "kyoboson.ttf"  # GitHub repo 최상위에 있어야 함
 fm.fontManager.addfont(font_path)
 font_prop = fm.FontProperties(fname=font_path)
 
-
-# ================================================================
-# 3) Utils
-# ================================================================
+# -------------------------------------------
+# 색상 팔레트 (Ultra Palette - 다양함 + 진함)
+# -------------------------------------------
 PALETTE = [
     # Pastel
     "#FFCDD2", "#F8BBD0", "#E1BEE7",
@@ -72,177 +40,207 @@ PALETTE = [
 ]
 
 
-def pastel_color():
-    return random.choice(PALETTE)
-
-def safe_int(v, default=200):
+# -------------------------------------------
+# 페이지 수 안전 변환
+# -------------------------------------------
+def safe_int(value, default=200):
     try:
-        return int(v)
+        v = int(str(value).strip())
+        return v if v > 0 else default
     except:
         return default
 
-def shorten_title(t, max_len=22):
-    return t if len(t) <= max_len else t[:max_len] + "..."
+
+# -------------------------------------------
+# 제목 너무 길면 줄이기
+# -------------------------------------------
+def shorten_title(title, max_len=22):
+    return title if len(title) <= max_len else title[:max_len] + "..."
 
 
-# ================================================================
-# 4) 완전 사각형 + 그림자 책 그리기
-# ================================================================
-def draw_book(ax, x, y, w, h, color, title):
-    # 그림자 (회색)
-    ax.add_patch(Rectangle(
-        (x + 0.12, y + 0.12),
-        w, h,
+# -------------------------------------------
+# 책(직사각형) 그리기
+# -------------------------------------------
+def draw_book(ax, x, y, width, height, color, title):
+    # 그림자 (아래)
+    shadow = patches.Rectangle(
+        (x + 0.15, y - 0.15),
+        width,
+        height,
         linewidth=0,
-        facecolor=(0, 0, 0, 0.25),
-        zorder=1,
-    ))
+        facecolor="black",
+        alpha=0.20,
+    )
+    ax.add_patch(shadow)
 
-    # 본체 (사각형)
-    ax.add_patch(Rectangle(
+    # 책 본체
+    rect = patches.Rectangle(
         (x, y),
-        w, h,
-        linewidth=1.8,
-        edgecolor="#333333",
-        facecolor=color,
-        zorder=2,
-    ))
+        width,
+        height,
+        linewidth=2,
+        edgecolor="black",
+        facecolor=color
+    )
+    ax.add_patch(rect)
 
     # 제목
     ax.text(
-        x + w/2,
-        y + h/2,
+        x + width / 2,
+        y + height / 2,
         title,
         ha="center",
         va="center",
         fontsize=13,
-        color="black",
         fontproperties=font_prop,
-        weight="bold",
-        zorder=3,
     )
 
 
-# ================================================================
-# 5) 앱 상태 초기화
-# ================================================================
+# -------------------------------------------
+# 세션 초기화
+# -------------------------------------------
 if "books" not in st.session_state:
     st.session_state.books = []
+
 if "selected_book" not in st.session_state:
     st.session_state.selected_book = None
 
 
-# ================================================================
-# 6) UI — 검색 영역
-# ================================================================
-st.markdown("<h1 class='page-title'>📚 AI 기반 알라딘 책검색 + 책탑 쌓기</h1>", unsafe_allow_html=True)
-st.markdown("<div class='search-card'>", unsafe_allow_html=True)
+# -------------------------------------------
+# 검색 UI
+# -------------------------------------------
+st.title("📚 AI 기반 알라딘 책검색 + 책탑 쌓기")
 
-with st.form("search_form"):
-    title_input = st.text_input("📗 책 제목 입력 (필수)")
-    author_input = st.text_input("✍️ 저자 (선택)")
+with st.form(key="search_form"):
+    title_input = st.text_input("책 제목 입력 (필수)")
+    author_input = st.text_input("저자 입력 (선택)")
     submitted = st.form_submit_button("검색하기")
-
-st.markdown("</div>", unsafe_allow_html=True)
-
 
 if submitted:
     if title_input:
         st.session_state.search_results = search_books(title_input)
     else:
-        st.warning("책 제목을 입력해야 합니다!")
+        st.warning("책 제목을 입력해야 검색됩니다.")
 
 
-# ================================================================
-# 7) 검색 결과 표시
-# ================================================================
+# -------------------------------------------
+# 검색 결과 Compact 카드 UI
+# -------------------------------------------
 if "search_results" in st.session_state:
     results = st.session_state.search_results
-    st.subheader("📘 이 책이 맞나요?")
+    st.subheader("📘 검색 결과")
 
-    if not results:
-        st.error("검색 결과 없음")
-    else:
-        for idx, book in enumerate(results):
-            st.markdown("<div class='book-card'>", unsafe_allow_html=True)
+    # CSS 정의
+    st.markdown("""
+    <style>
+        .compact-card {
+            background-color: #2b2b2b;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            box-shadow: 2px 2px 6px rgba(0,0,0,0.25);
+        }
+        .compact-text {
+            padding-left: 14px;
+        }
+        .compact-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .compact-author {
+            font-size: 13px;
+            opacity: 0.85;
+            margin-top: 3px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-            st.write(f"### {idx+1}. {book['title']}")
-            st.write(f"**저자:** {book['author']}")
-            st.image(book["cover"], width=120)
+    for idx, book in enumerate(results):
+        with st.container():
+            st.markdown('<div class="compact-card">', unsafe_allow_html=True)
 
-            if st.button(f"이 책 선택 ({idx+1})"):
-                st.session_state.selected_book = book
+            # 작은 표지 이미지
+            st.image(book["cover"], width=70)
+
+            # 텍스트
+            st.markdown(f"""
+            <div class="compact-text">
+                <div class="compact-title">{idx+1}. {book['title']}</div>
+                <div class="compact-author">{book['author']}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
             st.markdown("</div>", unsafe_allow_html=True)
 
+            # 선택 버튼
+            if st.button(f"이 책 선택 ({idx+1})", key=f"select_{idx}"):
+                st.session_state.selected_book = book
 
-# ================================================================
-# 8) 책 선택 → 책탑에 추가
-# ================================================================
-sel = st.session_state.selected_book
-if sel:
-    st.success(f"'{sel['title']}' 추가됨!")
 
-    pages = safe_int(sel.get("pages"))
-    height = 0.9 + min(pages / 1500, 0.7)  # 0.9 ~ 1.6
+# -------------------------------------------
+# 선택한 책 → 리스트에 추가
+# -------------------------------------------
+selected = st.session_state.selected_book
 
-    idx = len(st.session_state.books)
-    direction = 1 if idx % 2 == 0 else -1
-    x_offset = (idx % 3) * 0.8 * direction
+if selected:
+    pages = safe_int(selected["pages"])
+    height = 1.0 + min(pages / 1500, 0.5)
 
     st.session_state.books.append({
-        "title": sel["title"],
+        "title": selected["title"],
+        "pages": pages,
         "height": height,
-        "color": pastel_color(),
-        "x_offset": x_offset,
+        "color": random.choice(PALETTE)
     })
 
     st.session_state.selected_book = None
 
 
-# ================================================================
-# 9) 책탑 시각화 (이미지 → 절대 안 잘리고 스크롤됨)
-# ================================================================
+# -------------------------------------------
+# 책탑 시각화 (PNG로 렌더링 → 절대 화면에서 안 짤림)
+# -------------------------------------------
 st.subheader("📚 내가 쌓은 책들")
 
 if not st.session_state.books:
-    st.info("아직 책이 없습니다.")
+    st.info("아직 쌓인 책이 없습니다.")
 else:
     books = list(reversed(st.session_state.books))
 
-    total_h = sum(b["height"] for b in books) + 1
-    fig_h = max(5, total_h * 0.7)
+    fig_height = max(5, len(books) * 1.4)
+    fig, ax = plt.subplots(figsize=(8, fig_height))
 
-    fig, ax = plt.subplots(figsize=(8, fig_h))
     ax.set_xlim(0, 10)
-    ax.set_ylim(0, total_h)
-    ax.invert_yaxis()
-
-    y = 0.3
-    for b in books:
-        draw_book(
-            ax,
-            x=2 + b["x_offset"],
-            y=y,
-            w=6,
-            h=b["height"],
-            color=b["color"],
-            title=shorten_title(b["title"])
-        )
-        y += b["height"]  # 간격 0 → 딱 붙기
-
+    ax.set_ylim(0, len(books) * 2)
     ax.axis("off")
 
-    # PNG로 저장 후 st.image로 출력 (스크롤 가능)
+    y = 1
+
+    for idx, book in enumerate(books):
+        x = 2 + (idx % 3) * 0.5  # 좌우 약간 흔들림
+        draw_book(
+            ax,
+            x,
+            y,
+            width=6,
+            height=book["height"],
+            color=book["color"],
+            title=shorten_title(book["title"])
+        )
+        y += book["height"] + 0.1
+
+    # PNG로 변환
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", bbox_inches="tight")
+    fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
     buf.seek(0)
+
     st.image(buf)
 
 
-# ================================================================
-# 10) 초기화 버튼
-# ================================================================
+# -------------------------------------------
+# 전체 초기화
+# -------------------------------------------
 if st.button("모든 책 초기화"):
     st.session_state.books = []
     st.experimental_rerun()
