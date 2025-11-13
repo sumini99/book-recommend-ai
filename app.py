@@ -98,29 +98,34 @@ if selected:
     st.success(f"'{selected['title']}' 선택됨! 아래에 쌓입니다.")
 
     pages = safe_int(selected["pages"])
-    height = 1.5 + min(pages / 1500, 0.6)  
-    # → 기본 1.5 ~ 최대 2.1 (두꺼워지되 너무 과하지 않음)
+    height = 1.5 + min(pages / 1500, 0.6)  # 두께 계산
+
+    # 책의 x 위치를 "쌓는 순간" 고정 저장해야 기존 책이 움직이지 않음
+    idx = len(st.session_state.books)
+    direction = 1 if idx % 2 == 0 else -1
+    x_offset = (idx % 3) * 1.2 * direction
 
     st.session_state.books.append({
         "title": selected["title"],
         "author": selected["author"],
         "pages": pages,
         "height": height,
-        "color": random_color()
+        "color": random_color(),
+        "x_offset": x_offset   # 🔥 고정 저장!
     })
 
     st.session_state.selected_book = None
 
 
 # -------------------------------
-# 🏗️ 책 시각화 (계단식 + 위로 쌓임)
+# 🏗️ 책 시각화
 # -------------------------------
 st.subheader("📚 내가 쌓은 책들")
 
 if not st.session_state.books:
     st.info("아직 쌓인 책이 없습니다.")
 else:
-    books = list(reversed(st.session_state.books))  # 최근 책이 위로
+    books = list(reversed(st.session_state.books))  # 최근 책을 위로
 
     fig_height = max(5, len(books) * 1.4)
     fig, ax = plt.subplots(figsize=(10, fig_height))
@@ -130,32 +135,28 @@ else:
     ax.invert_yaxis()
 
     y = 1
-    offset_direction = 1
 
     for idx, book in enumerate(books):
         color = book["color"]
         thickness = book["height"]
-
-        # 좌 ↔ 우 번갈아 계단식
-        x_offset = (idx % 3) * 1.2 * offset_direction
-        offset_direction *= -1
+        x_offset = book["x_offset"]   # 🔥 저장된 값 그대로 사용
 
         # 책 박스
         rect = plt.Rectangle(
             (3 + x_offset, y),
-            6,               # 가로길이
-            thickness,       # 세로길이
+            6,
+            thickness,
             color=color,
             ec="black",
             linewidth=2
         )
         ax.add_patch(rect)
 
-        # 책 제목만 표시
+        # 제목 텍스트
         ax.text(
             3 + x_offset + 3,
             y + thickness / 2,
-            f"{book['title']}",        # ⬅ 제목만!
+            f"{book['title']}",
             fontsize=13,
             color="black",
             fontproperties=font_prop,
@@ -164,11 +165,11 @@ else:
             va="center"
         )
 
-        # ✔ 텀 제거 (완전 딱 붙게)
-        y += thickness + 0.05    # 아주 미세한 간격만 두기 (겹침 방지)
+        y += thickness + 0.05
 
     ax.axis("off")
     st.pyplot(fig)
+
 
 # -------------------------------
 # 🗑️ 전체 초기화
