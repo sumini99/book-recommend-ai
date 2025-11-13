@@ -23,28 +23,26 @@ def search_books(query):
     except:
         return []
 
-    # XML namespace 정의
     ns = {'ns': 'http://www.aladin.co.kr/ttb/apiguide.aspx'}
-
-    # item 태그 찾기
     items = root.findall(".//ns:item", ns)
 
     results = []
     for item in items:
-        title = item.find("ns:title", ns)
-        author = item.find("ns:author", ns)
-        cover = item.find("ns:cover", ns)
-        pubdate = item.find("ns:pubDate", ns)
-        isbn13 = item.find("ns:isbn13", ns)
+        def get_value(tag):
+            node = item.find(f"ns:{tag}", ns)
+            return node.text if node is not None else ""
 
         results.append({
-            "title": title.text if title is not None else "",
-            "author": author.text if author is not None else "",
-            "cover": cover.text if cover is not None else "",
-            "pubdate": pubdate.text if pubdate is not None else "",
-            "isbn13": isbn13.text if isbn13 is not None else "",
+            "title": get_value("title"),
+            "author": get_value("author"),
+            "cover": get_value("cover"),
+            "publisher": get_value("publisher"),
+            "pubdate": get_value("pubDate"),
+            "isbn": get_value("isbn"),
+            "isbn13": get_value("isbn13"),
+            "price": get_value("priceSales"),
+            "link": get_value("link"),
+            "pages": get_value("subInfo/ns:itemPage"),  # 페이지수 (없을 수도 있음)
         })
 
     return results
-
-
