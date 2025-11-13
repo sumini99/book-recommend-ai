@@ -131,20 +131,20 @@ def draw_pretty_book(ax, x, y, width, height, color, title, font_prop):
     # 그림자
     rounded_rect(
         ax,
-        x + 0.15, y + 0.12,
+        x + 0.1, y + 0.1,
         width, height,
-        r=12,
-        color=(0, 0, 0, 0.15),
+        r=6,
+        color=(0, 0, 0, 0.18),
         edgecolor=(0, 0, 0, 0),
         zorder=1
     )
 
-    # 본체
+    # 책 본체
     rounded_rect(
         ax,
         x, y,
         width, height,
-        r=12,
+        r=6,                      # ✔ 모서리 둥근 정도 감소 → 책처럼 보임
         color=color,
         edgecolor="#333333",
         zorder=2
@@ -157,13 +157,12 @@ def draw_pretty_book(ax, x, y, width, height, color, title, font_prop):
         title,
         ha="center",
         va="center",
-        fontsize=14,
+        fontsize=13,
         color="black",
         fontproperties=font_prop,
         weight="bold",
         zorder=3
     )
-
 
 # ================================================================
 # Streamlit 앱 구성
@@ -226,7 +225,7 @@ if sel:
     st.success(f"'{sel['title']}' 책탑에 추가!")
 
     pages = safe_int(sel["pages"])
-    height = 1.4 + min(pages / 1500, 0.6)
+    height = 2.2 + min(pages / 1200, 1.0)
 
     idx = len(st.session_state.books)
     direction = 1 if idx % 2 == 0 else -1
@@ -264,7 +263,7 @@ else:
             ax,
             x=4 + book["x_offset"],
             y=y,
-            width=6.5,
+            width=7.0,
             height=book["height"],
             color=book["color"],
             title=shorten_title(book["title"]),
