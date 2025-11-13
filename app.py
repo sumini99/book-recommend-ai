@@ -2,15 +2,21 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import random
+import os
 
 st.set_page_config(page_title="책 시각화 보드", page_icon="📚")
 
-# -------- 한글 폰트 로드 (repo 루트에 위치) --------
-font_path = "kyoboson.ttf"  # 루트에 넣은 폰트 파일 이름
-font_prop = fm.FontProperties(fname=font_path)
-fm.fontManager.addfont(font_path)
-plt.rc('font', family=font_prop.get_name())
-# ---------------------------------------------
+# -------- 한글 폰트 로드 (repo 루트의 kyoboson.ttf) --------
+font_path = "kyoboson.ttf"
+
+if os.path.exists(font_path):
+    font_prop = fm.FontProperties(fname=font_path)
+    fm.fontManager.addfont(font_path)
+    plt.rc('font', family=font_prop.get_name())
+else:
+    st.warning("⚠️ 폰트 파일을 찾을 수 없습니다. (kyoboson.ttf)")
+    font_prop = None
+# ------------------------------------------------------------
 
 st.title("📚 내 책 쌓기(시각화)")
 
