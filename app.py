@@ -1,22 +1,25 @@
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
-import random
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
+from matplotlib import font_manager as fm
+import random
 
-# -------------------------
-# 폰트 설정 (kyoboson.ttf)
-# -------------------------
-font_path = "kyoboson.ttf"
-fm.fontManager.addfont(font_path)
-font_prop = fm.FontProperties(fname=font_path)
+# -----------------------------
+# 1) 폰트 설정 (경로는 리포에 올린 kyoboson.ttf)
+# -----------------------------
+FONT_PATH = "kyoboson.ttf"
+font_prop = fm.FontProperties(fname=FONT_PATH)
 
-# --------------------------------------------------------
-# 알라딘 API 검색 함수
-# --------------------------------------------------------
-def search_books(query):
+# -----------------------------
+# 2) 알라딘 API 검색 함수
+# -----------------------------
+def search_books(title, author=None):
     TTBKEY = st.secrets["aladin"]["aladin_key"]
+
+    query = title
+    if author and len(author.strip()) > 0:
+        query += " " + author
 
     url = (
         "http://www.aladin.co.kr/ttb/api/ItemSearch.aspx"
@@ -31,95 +34,89 @@ def search_books(query):
     )
 
     res = requests.get(url)
+
     if res.status_code != 200:
         return []
 
-    root = ET.fromstring(res.text)
+    try:
+        root = ET.fromstring(res.text)
+    except:
+        return []
 
-    items = root.findall(".//item")
-    results = []
+    items = []
+    for item in root.findall("item"):
+        title = item.findtext("title", "")
+        author = item.findtext("author", "")
+        cover = item.findtext("cover", "")
+        pages = item.findtext("subInfo/paperBookList/priceSales")  # 페이지 정보 대체필드 없어서 임시
+        publisher = item.findtext("publisher", "")
 
-    for item in items:
-        title = item.findtext("title", default="제목 없음")
-        author = item.findtext("author", default="저자 정보 없음")
-        cover = item.findtext("cover", default="")
-        publisher = item.findtext("publisher", default="")
-        isbn = item.findtext("isbn", default="")
-        pages = 180  # 기본값 (Page정보 없음 → 임시)
+        # 페이지수 미지원 → 임의 250 입력 (동일 책은 길이가 비슷함)
+        try:
+            pages = int(pages)
+        except:
+            pages = 250
 
-        results.append({
+        items.append({
             "title": title,
             "author": author,
             "cover": cover,
             "publisher": publisher,
-            "isbn": isbn,
             "pages": pages
         })
 
-    return results
+    return items
 
 
-# -------------------------
-# 세션 상태 초기화
-# -------------------------
+# -----------------------------
+# 3) 세션 초기화
+# -----------------------------
 if "books" not in st.session_state:
     st.session_state.books = []
 
-
-# -------------------------
-# UI 입력 영역
-# -------------------------
+# -----------------------------
+# 4) UI - 제목/저자 입력
+# -----------------------------
 st.title("📚 책 쌓기 프로젝트")
 
 title_input = st.text_input("책 제목 입력")
+author_input = st.text_input("저자 검색 (선택)")
+
 search_btn = st.button("🔍 알라딘에서 검색")
 
 selected_book = None
 
-if search_btn and title_input:
-    results = search_books(title_input)
+# -----------------------------
+# 5) 검색 처리
+# -----------------------------
+if search_btn:
+    results = search_books(title_input, author_input)
 
     if not results:
         st.error("검색 결과가 없습니다.")
     else:
-        st.subheader("📘 이 책이 맞나요?")
+        st.success("검색 결과를 찾았습니다!")
+
         for idx, book in enumerate(results):
             with st.container():
-                st.write(f"### {idx+1}. {book['title']}")
+                st.write(f"### 📘 {idx+1}. {book['title']}")
                 st.write(f"저자: {book['author']}")
-                if book["cover"]:
-                    st.image(book["cover"], width=150)
+                st.write(f"출판사: {book['publisher']}")
+                st.image(book["cover"], width=120)
 
-                if st.button(f"📚 이 책 쌓기 (선택 {idx+1})"):
+                if st.button(f"📌 이 책 선택하기 {idx+1}", key=f"select_{idx}"):
                     selected_book = book
-                    break
+                    st.session_state.books.append({
+                        "title": book["title"],
+                        "author": book["author"],
+                        "pages": book["pages"],
+                        "color": "#" + ''.join(random.choices("89ABCDEF", k=6))
+                    })
+                    st.rerun()
 
-# -------------------------
-# 선택된 책 저장
-# -------------------------
-if selected_book:
-    # 랜덤 색상
-    color = "#" + ''.join([random.choice("89ABCDEF") for _ in range(6)])
-
-    # 책 높이 (페이지 기반)
-    height = max(1.2, selected_book["pages"] / 200)
-
-    # 책 데이터를 session_state에 저장
-    st.session_state.books.append({
-        "title": selected_book["title"],
-        "author": selected_book["author"],
-        "pages": selected_book["pages"],
-        "color": color,
-        "height": height
-        # x_offset은 밑의 시각화하면서 자동 생성
-    })
-
-    st.success(f"'{selected_book['title']}' 선택됨! 아래에 쌓입니다.")
-
-
-# =========================================================
-# 📚 책 시각화
-# =========================================================
+# -----------------------------
+# 6) 책 쌓기 시각화
+# -----------------------------
 st.subheader("📚 내가 쌓은 책들")
 
 if not st.session_state.books:
@@ -127,58 +124,43 @@ if not st.session_state.books:
 else:
     books = list(reversed(st.session_state.books))
 
-    fig_height = max(5, len(books) * 1.3)
-    fig, ax = plt.subplots(figsize=(10, fig_height))
+    fig, ax = plt.subplots(figsize=(10, len(books) * 1.2))
 
     ax.set_xlim(0, 12)
-    ax.set_ylim(0, len(books) * 2 + 1)
+    ax.set_ylim(0, len(books) * 1.3 + 1)
     ax.invert_yaxis()
 
     y = 1
+    toggle = 1
 
-    for idx, book in enumerate(books):
-        color = book["color"]
-        thickness = book["height"]
+    for i, bk in enumerate(books):
 
-        # 책 좌표 고정 (한번 정해지면 변화 X)
-        if "x_offset" not in book:
-            offset_index = idx % 3
-            offset_direction = -1 if (idx % 2 == 0) else 1
-            book["x_offset"] = offset_index * 1.2 * offset_direction
+        # 제목 글자 너무 길면 ... 처리
+        display_title = bk["title"]
+        if len(display_title) > 32:
+            display_title = display_title[:29] + "..."
 
-        x_offset = book["x_offset"]
+        # 페이지수를 기반으로 높이 조금 증가
+        height = 1.1 + (bk["pages"] / 2000)
 
-        # 말줄임표 처리
-        title = book["title"]
-        if len(title) > 18:
-            title = title[:18] + "..."
+        x_shift = (i % 3) * 0.7 * toggle
+        toggle *= -1
 
-        # 책 박스
-        rect = plt.Rectangle(
-            (3 + x_offset, y),
-            6,
-            thickness,
-            color=color,
-            ec="black",
-            linewidth=2
-        )
+        rect = plt.Rectangle((3 + x_shift, y), 6, height, color=bk["color"], ec="black", linewidth=2)
         ax.add_patch(rect)
 
-        # 텍스트 중앙 정렬
         ax.text(
-            3 + x_offset + 3,
-            y + thickness / 2,
-            title,
-            fontsize=13,
-            color="black",
+            3 + x_shift + 3,
+            y + height/2,
+            display_title,
             fontproperties=font_prop,
-            weight="bold",
+            fontsize=14,
             ha="center",
-            va="center"
+            va="center",
+            weight="bold"
         )
 
-        # 책 간격 딱 붙게
-        y += thickness + 0.05
+        y += height + 0.1
 
     ax.axis("off")
     st.pyplot(fig)
