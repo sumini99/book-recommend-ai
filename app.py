@@ -54,9 +54,23 @@ font_prop = fm.FontProperties(fname=font_path)
 # 3) Utils
 # ================================================================
 PALETTE = [
-    "#FFEBEE", "#FCE4EC", "#E3F2FD",
-    "#E8F5E9", "#FFFDE7", "#EDE7F6"
+    # Pastel
+    "#FFCDD2", "#F8BBD0", "#E1BEE7",
+    "#D1C4E9", "#C5CAE9", "#BBDEFB",
+    "#B3E5FC", "#B2EBF2", "#B2DFDB",
+    "#C8E6C9", "#DCEDC8", "#F0F4C3",
+
+    # Vivid
+    "#FFAB91", "#FF8A65", "#FF7043",
+    "#FFCC80", "#FFD54F", "#FFE082",
+    "#80CBC4", "#4DB6AC", "#26A69A",
+    "#64B5F6", "#42A5F5", "#1E88E5",
+
+    # Neutral
+    "#F5E0C3", "#E8D1A1", "#D7C0AE",
+    "#C1B4A3", "#B8A590", "#A1887F",
 ]
+
 
 def pastel_color():
     return random.choice(PALETTE)
