@@ -1,48 +1,43 @@
 import requests
-import xml.etree.ElementTree as ET
 import streamlit as st
 
-def search_books(query):
+def search_books(keyword):
     TTBKEY = st.secrets["aladin"]["aladin_key"]
-
     url = "http://www.aladin.co.kr/ttb/api/ItemSearch.aspx"
+
     params = {
         "ttbkey": TTBKEY,
-        "Query": query,
-        "QueryType": "Keyword",
+        "Query": keyword,
+        "QueryType": "Keyword",   # 제목+저자 전체 검색
         "MaxResults": 5,
+        "start": 1,
         "SearchTarget": "Book",
-        "output": "xml",
+        "output": "JS",
         "Version": "20131101"
     }
 
-    res = requests.get(url, params=params)
-
-    try:
-        root = ET.fromstring(res.text)
-    except:
+    response = requests.get(url, params=params)
+    
+    if response.status_code != 200:
         return []
 
-    ns = {'ns': 'http://www.aladin.co.kr/ttb/apiguide.aspx'}
-    items = root.findall(".//ns:item", ns)
+    data = response.json()
+
+    # 검색 결과 없음
+    if "item" not in data:
+        return []
 
     results = []
-    for item in items:
-        def get_value(tag):
-            node = item.find(f"ns:{tag}", ns)
-            return node.text if node is not None else ""
-
+    for item in data["item"]:
         results.append({
-            "title": get_value("title"),
-            "author": get_value("author"),
-            "cover": get_value("cover"),
-            "publisher": get_value("publisher"),
-            "pubdate": get_value("pubDate"),
-            "isbn": get_value("isbn"),
-            "isbn13": get_value("isbn13"),
-            "price": get_value("priceSales"),
-            "link": get_value("link"),
-            "pages": get_value("subInfo/ns:itemPage"),  # 페이지수 (없을 수도 있음)
+            "title": item.get("title", ""),
+            "author": item.get("author", ""),
+            "publisher": item.get("publisher", ""),
+            "cover": item.get("cover", ""),
+            "pages": int(item.get("subInfo", {}).get("itemPage", 180)),  # 없으면 기본 180
         })
 
     return results
+
+
+
