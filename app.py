@@ -69,34 +69,61 @@ def shorten_title(t, max_len=24):
 # ================================================================
 # Pretty Rounded Book Drawing Function
 # ================================================================
-def draw_pretty_book(ax, x, y, width, height, color, title):
+from matplotlib.path import Path
+from matplotlib.patches import PathPatch
+
+def rounded_rect(ax, x, y, width, height, radius, color, edgecolor):
+    # 코너 반지름 제한 (너무 크면 터짐 방지)
+    radius = min(radius, width/2, height/2)
+
+    # Path 정의
+    verts = [
+        (x + radius, y),
+        (x + width - radius, y),
+        (x + width, y),
+        (x + width, y + radius),
+        (x + width, y + height - radius),
+        (x + width, y + height),
+        (x + width - radius, y + height),
+        (x + radius, y + height),
+        (x, y + height),
+        (x, y + height - radius),
+        (x, y + radius),
+        (x, y),
+        (x + radius, y),
+    ]
+    codes = [
+        Path.MOVETO,
+        Path.LINETO,
+        Path.CURVE3,
+        Path.CURVE3,
+        Path.LINETO,
+        Path.CURVE3,
+        Path.CURVE3,
+        Path.LINETO,
+        Path.CURVE3,
+        Path.CURVE3,
+        Path.LINETO,
+        Path.CURVE3,
+        Path.CURVE3,
+    ]
+
+    path = Path(verts, codes)
+    patch = PathPatch(path, facecolor=color, edgecolor=edgecolor, linewidth=2, zorder=3)
+    ax.add_patch(patch)
+
+
+def draw_pretty_book(ax, x, y, width, height, color, title, font_prop):
 
     # 그림자
-    shadow = FancyBboxPatch(
-        (x + 0.15, y + 0.15),
-        width,
-        height,
-        boxstyle="round,pad=0.4,rounding_size=30",
-        linewidth=0,
-        facecolor=(0, 0, 0, 0.18),
-        zorder=1
-    )
-    ax.add_patch(shadow)
+    rounded_rect(ax, x+0.15, y+0.12, width, height, radius=12,
+                 color=(0,0,0,0.15), edgecolor=(0,0,0,0))
 
     # 본체
-    book = FancyBboxPatch(
-        (x, y),
-        width,
-        height,
-        boxstyle="round,pad=0.4,rounding_size=30",
-        linewidth=2,
-        edgecolor="#333333",
-        facecolor=color,
-        zorder=2
-    )
-    ax.add_patch(book)
+    rounded_rect(ax, x, y, width, height, radius=12,
+                 color=color, edgecolor="#333333")
 
-    # 제목
+    # 텍스트
     ax.text(
         x + width/2,
         y + height/2,
@@ -107,9 +134,8 @@ def draw_pretty_book(ax, x, y, width, height, color, title):
         fontsize=14,
         color="black",
         weight="bold",
-        zorder=3
+        zorder=4
     )
-
 
 # ================================================================
 # Streamlit Config
