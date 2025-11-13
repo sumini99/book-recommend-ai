@@ -1,16 +1,15 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
-from matplotlib.patches import PathPatch
-from matplotlib.path import Path
+from matplotlib.patches import FancyBboxPatch
 import random
 from aladin_api import search_books
 
 
 # ================================================================
-# UI 스타일 (CSS)
+# 0) 기본 UI 스타일
 # ================================================================
-def local_css(css_text):
+def local_css(css_text: str):
     st.markdown(f"<style>{css_text}</style>", unsafe_allow_html=True)
 
 local_css("""
@@ -34,11 +33,17 @@ local_css("""
     border-radius: 8px;
     font-weight: 600;
 }
+.stTextInput>div>div>input {
+    background: #2c2c2c !important;
+    color: white !important;
+    border-radius: 8px;
+    padding: 10px;
+}
 """)
 
 
 # ================================================================
-# 한글 폰트 로드
+# 1) 한글 폰트 로드
 # ================================================================
 font_path = "kyoboson.ttf"
 fm.fontManager.addfont(font_path)
@@ -46,7 +51,7 @@ font_prop = fm.FontProperties(fname=font_path)
 
 
 # ================================================================
-# 파스텔 컬러 팔레트
+# 2) 유틸 함수들
 # ================================================================
 PALETTE = [
     "#FFCDD2",  # pink
@@ -58,102 +63,62 @@ PALETTE = [
     "#FFE0B2",  # peach
 ]
 
-def pastel_color():
+def pastel_color() -> str:
     return random.choice(PALETTE)
 
-
-def safe_int(v, default=200):
+def safe_int(value, default=200):
     try:
+        if value is None:
+            return default
+        v = str(value).strip()
+        if v == "":
+            return default
         return int(v)
     except:
         return default
 
-
-def shorten_title(t, max_len=24):
-    return t if len(t) <= max_len else t[:max_len] + "..."
+def shorten_title(title: str, max_len: int = 24) -> str:
+    return title if len(title) <= max_len else title[:max_len] + "..."
 
 
 # ================================================================
-# "절대 깨지지 않는" 둥근 직사각형 함수
+# 3) 책 하나 그리는 함수 (사각형 + 살짝 라운드 + 그림자)
 # ================================================================
-def rounded_rect(ax, x, y, w, h, r, color, edgecolor, zorder):
+def draw_book(ax, x, y, width, height, color, title):
+    """
+    살짝 둥근 사각형 + 얇은 그림자.
+    모양 이상해지는 거 방지하려고 라운드는 아주 작게만 줌.
+    """
 
-    # 반지름 제한 (너무 크면 자동 감소)
-    r = min(r, w/2, h/2)
-
-    verts = [
-        (x+r, y),                 # start
-        (x+w-r, y),
-        (x+w, y),                 # corner 1
-        (x+w, y+r),
-        (x+w, y+h-r),
-        (x+w, y+h),               # corner 2
-        (x+w-r, y+h),
-        (x+r, y+h),
-        (x, y+h),                 # corner 3
-        (x, y+h-r),
-        (x, y+r),
-        (x, y),                   # corner 4
-        (x+r, y)
-    ]
-
-    codes = [
-        Path.MOVETO,
-        Path.LINETO,
-        Path.CURVE3,
-        Path.CURVE3,
-        Path.LINETO,
-        Path.CURVE3,
-        Path.CURVE3,
-        Path.LINETO,
-        Path.CURVE3,
-        Path.CURVE3,
-        Path.LINETO,
-        Path.CURVE3,
-        Path.CURVE3,
-    ]
-
-    patch = PathPatch(
-        Path(verts, codes),
-        facecolor=color,
-        edgecolor=edgecolor,
-        linewidth=2,
-        zorder=zorder,
+    # 그림자 (뒤쪽, 약간 아래/오른쪽으로)
+    shadow = FancyBboxPatch(
+        (x + 0.1, y + 0.1),
+        width,
+        height,
+        boxstyle="round,pad=0,rounding_size=2",  # 거의 사각형
+        linewidth=0,
+        facecolor=(0, 0, 0, 0.18),
+        zorder=1,
     )
-    ax.add_patch(patch)
-
-
-# ================================================================
-# 예쁜 책 그리기 함수
-# ================================================================
-def draw_pretty_book(ax, x, y, width, height, color, title, font_prop):
-
-    # 그림자
-    rounded_rect(
-        ax,
-        x + 0.1, y + 0.1,
-        width, height,
-        r=6,
-        color=(0, 0, 0, 0.18),
-        edgecolor=(0, 0, 0, 0),
-        zorder=1
-    )
+    ax.add_patch(shadow)
 
     # 책 본체
-    rounded_rect(
-        ax,
-        x, y,
-        width, height,
-        r=6,                      # ✔ 모서리 둥근 정도 감소 → 책처럼 보임
-        color=color,
+    body = FancyBboxPatch(
+        (x, y),
+        width,
+        height,
+        boxstyle="round,pad=0,rounding_size=2",  # 살짝 둥근 정도만
+        linewidth=1.5,
         edgecolor="#333333",
-        zorder=2
+        facecolor=color,
+        zorder=2,
     )
+    ax.add_patch(body)
 
-    # 제목
+    # 제목 텍스트
     ax.text(
-        x + width/2,
-        y + height/2,
+        x + width / 2,
+        y + height / 2,
         title,
         ha="center",
         va="center",
@@ -161,124 +126,135 @@ def draw_pretty_book(ax, x, y, width, height, color, title, font_prop):
         color="black",
         fontproperties=font_prop,
         weight="bold",
-        zorder=3
+        zorder=3,
     )
 
-# ================================================================
-# Streamlit 앱 구성
-# ================================================================
-st.set_page_config(page_title="책 쌓기", layout="wide")
-st.markdown("<h1 class='page-title'>📚 예쁜 파스텔 책탑 쌓기</h1>", unsafe_allow_html=True)
 
+# ================================================================
+# 4) Streamlit 기본 설정 (⚠ wide 모드 끔!)
+# ================================================================
+st.set_page_config(page_title="책 쌓기", layout="centered")
+st.markdown("<h1 class='page-title'>📚 AI 기반 알라딘 책검색 + 책탑 쌓기</h1>", unsafe_allow_html=True)
+
+# 세션 상태 초기화
 if "books" not in st.session_state:
     st.session_state.books = []
 if "selected_book" not in st.session_state:
     st.session_state.selected_book = None
 
 
-# ----------------------------------------------------------
-# 검색 UI
-# ----------------------------------------------------------
+# ================================================================
+# 5) 검색 UI
+# ================================================================
 st.markdown("<div class='search-card'>", unsafe_allow_html=True)
 
 with st.form("search_form"):
-    title_input = st.text_input("📗 책 제목 입력")
-    author_input = st.text_input("✍️ 저자(선택)")
-    do_search = st.form_submit_button("검색하기")
+    title_input = st.text_input("📗 책 제목 입력 (필수)")
+    author_input = st.text_input("✍️ 저자 (선택)")
+    submitted = st.form_submit_button("검색하기")
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-if do_search:
+if submitted:
     if title_input:
         st.session_state.search_results = search_books(title_input)
     else:
-        st.warning("책 제목은 필수입니다.")
+        st.warning("책 제목을 입력해야 검색됩니다.")
 
 
-# ----------------------------------------------------------
-# 검색 결과 표시
-# ----------------------------------------------------------
+# ================================================================
+# 6) 검색 결과 표시
+# ================================================================
 if "search_results" in st.session_state:
     results = st.session_state.search_results
+
     st.subheader("📘 이 책이 맞나요?")
 
     if not results:
-        st.error("검색 결과 없음")
+        st.error("검색 결과를 찾을 수 없습니다.")
     else:
-        for i, book in enumerate(results):
+        for idx, book in enumerate(results):
             st.markdown("<div class='book-card'>", unsafe_allow_html=True)
-            st.write(f"### {i+1}. {book['title']}")
-            st.write(f"**저자:** {book['author']}")
-            st.image(book["cover"], width=150)
 
-            if st.button(f"이 책 선택하기 ({i+1})"):
+            st.write(f"### {idx+1}. {book['title']}")
+            st.write(f"**저자:** {book['author']}")
+            st.write(f"**출판사:** {book.get('publisher', '정보 없음')}")
+            st.image(book["cover"], width=140)
+
+            if st.button(f"이 책 선택하기 ({idx+1})"):
                 st.session_state.selected_book = book
 
             st.markdown("</div>", unsafe_allow_html=True)
 
 
-# ----------------------------------------------------------
-# 선택된 책을 책탑에 추가
-# ----------------------------------------------------------
-sel = st.session_state.selected_book
-if sel:
-    st.success(f"'{sel['title']}' 책탑에 추가!")
+# ================================================================
+# 7) 책 선택 → 책탑에 추가
+# ================================================================
+selected = st.session_state.selected_book
 
-    pages = safe_int(sel["pages"])
-    height = 2.2 + min(pages / 1200, 1.0)
+if selected:
+    st.success(f"'{selected['title']}'를 책탑에 추가합니다!")
+
+    pages = safe_int(selected.get("pages"))
+    # 너무 차이나지 않게 두께 범위 제한
+    height = 0.9 + min(pages / 1200, 0.7)   # 0.9 ~ 1.6 정도
 
     idx = len(st.session_state.books)
     direction = 1 if idx % 2 == 0 else -1
-    x_offset = (idx % 3) * 1.2 * direction
+    x_offset = (idx % 3) * 0.8 * direction   # 좌우 살짝만 움직이게
 
     st.session_state.books.append({
-        "title": sel["title"],
+        "title": selected["title"],
         "height": height,
         "color": pastel_color(),
-        "x_offset": x_offset
+        "x_offset": x_offset,
     })
 
     st.session_state.selected_book = None
 
 
-# ----------------------------------------------------------
-# 책탑 시각화
-# ----------------------------------------------------------
+# ================================================================
+# 8) 책탑 시각화 (책 사이 간격 0으로 쌓기)
+# ================================================================
 st.subheader("📚 내가 쌓은 책들")
 
 if not st.session_state.books:
-    st.info("아직 책이 없습니다!")
+    st.info("아직 쌓인 책이 없습니다.")
 else:
+    # 최근 책이 위로 오도록
     books = list(reversed(st.session_state.books))
 
-    fig, ax = plt.subplots(figsize=(12, max(6, len(books) * 1.7)))
-    ax.set_xlim(0, 14)
-    ax.set_ylim(0, len(books) * 2 + 3)
+    # 전체 높이 계산 → 그래프가 잘리지 않도록
+    total_height = sum(book["height"] for book in books) + 1
+
+    fig_height = max(4, total_height * 0.6)  # 책 많을수록 자동으로 세로 길어짐
+    fig, ax = plt.subplots(figsize=(8, fig_height))
+
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, total_height + 0.5)
     ax.invert_yaxis()
 
-    y = 1
-
+    # 책 사이 간격 0 → 바로바로 위에 쌓기
+    y = 0.5
     for book in books:
-        draw_pretty_book(
+        draw_book(
             ax,
-            x=4 + book["x_offset"],
+            x=2 + book["x_offset"],
             y=y,
-            width=7.0,
+            width=6,
             height=book["height"],
             color=book["color"],
             title=shorten_title(book["title"]),
-            font_prop=font_prop
         )
-        y += book["height"] + 0.4
+        y += book["height"]  # ✅ 추가 간격 없이 딱 붙이기
 
     ax.axis("off")
-    st.pyplot(fig)
+    st.pyplot(fig, use_container_width=True)
 
 
-# ----------------------------------------------------------
-# 초기화 버튼
-# ----------------------------------------------------------
+# ================================================================
+# 9) 전체 초기화 버튼
+# ================================================================
 if st.button("모든 책 초기화"):
     st.session_state.books = []
     st.experimental_rerun()
-
