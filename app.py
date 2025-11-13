@@ -6,7 +6,7 @@ import random
 st.set_page_config(page_title="책 시각화 보드", page_icon="📚")
 
 # -------- 한글 폰트 로드 (repo 루트에 위치) --------
-font_path = "kyboson.ttf"  # 루트에 넣은 폰트 파일 이름
+font_path = "kyoboson.ttf"  # 루트에 넣은 폰트 파일 이름
 font_prop = fm.FontProperties(fname=font_path)
 fm.fontManager.addfont(font_path)
 plt.rc('font', family=font_prop.get_name())
